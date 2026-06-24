@@ -1,0 +1,50 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    function getUserData() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data;
+    }
+    
+    function hasRole(role) {
+      return isAuthenticated() && getUserData().role == role;
+    }
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated() && request.auth.uid == userId;
+      allow update: if isAuthenticated() && (request.auth.uid == userId || getUserData().role == 'admin');
+      allow delete: if isAuthenticated() && getUserData().role == 'admin';
+    }
+
+    match /issues/{issueId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+      allow update, delete: if isAuthenticated();
+    }
+
+    match /verifications/{verificationId} {
+      allow read: if isAuthenticated();
+      allow create, delete: if isAuthenticated();
+    }
+
+    match /comments/{commentId} {
+      allow read: if isAuthenticated();
+      allow create, update, delete: if isAuthenticated();
+    }
+
+    match /statusUpdates/{updateId} {
+      allow read: if isAuthenticated();
+      allow create: if isAuthenticated();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && (resource.data.userId == request.auth.uid || getUserData().role == 'admin');
+      allow create, update, delete: if isAuthenticated();
+    }
+  }
+}
