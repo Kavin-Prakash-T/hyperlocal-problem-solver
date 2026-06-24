@@ -1,1 +1,61 @@
+@import url('https://fonts.googleapis.com/css2?family=Geist:wght@100..900&family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
 @import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  --font-heading: "Geist", "Inter", system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-sans);
+    line-height: 1.625; /* leading-relaxed */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: var(--color-slate-50);
+    color: var(--color-slate-900);
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: -0.02em;
+    color: var(--color-slate-900);
+  }
+
+  label {
+    font-weight: 500;
+    font-size: 0.75rem; /* text-xs */
+    color: var(--color-slate-600);
+  }
+
+  input, select, textarea {
+    font-family: var(--font-sans);
+  }
+
+  button {
+    font-family: var(--font-sans);
+    font-weight: 600;
+  }
+}
+
+/* Reusable Typography classes */
+@utility hero-title {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1.1;
+}
+
+@utility section-title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1.25;
+}
+
+@utility card-title {
+  font-family: var(--font-heading);
+  font-weight: 600;
+  letter-spacing: -0.015em;
+  line-height: 1.35;
+}

@@ -22,7 +22,8 @@ import {
   getDocs as realGetDocs,
   arrayUnion as realArrayUnion,
   arrayRemove as realArrayRemove,
-  increment as realIncrement
+  increment as realIncrement,
+  limit as realLimit
 } from 'firebase/firestore';
 
 // Import our generated applet configuration safely
@@ -612,6 +613,13 @@ export function increment(n: number) {
     return { type: 'increment', val: n };
   }
   return realIncrement(n);
+}
+
+export function limit(n: number) {
+  if (isMockMode) {
+    return { type: 'limit', val: n };
+  }
+  return realLimit(n);
 }
 
 function processMockValue(existingVal: any, incomingVal: any) {

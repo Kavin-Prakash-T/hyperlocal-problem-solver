@@ -21,6 +21,7 @@ import Navbar from './components/Navbar';
 import CitizenDashboard from './components/CitizenDashboard';
 import AuthorityDashboard from './components/AuthorityDashboard';
 import AdminDashboard from './components/AdminDashboard';
+import AiChatAssistant from './components/AiChatAssistant';
 import { LanguageProvider, useTranslation, Language } from './lib/i18n';
 import { 
   ShieldAlert, 
@@ -36,6 +37,8 @@ import {
   Loader2,
   AlertCircle
 } from 'lucide-react';
+
+import { ToastProvider } from './components/Toast';
 
 function AppContent() {
   const { t, language } = useTranslation();
@@ -236,6 +239,7 @@ function AppContent() {
           <main className="flex-1 w-full max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
             {renderDashboardByRole()}
           </main>
+          <AiChatAssistant userId={userProfile.uid} userName={userProfile.name} />
         </>
       ) : (
         /* Unified Authentication Card Screen */
@@ -244,11 +248,11 @@ function AppContent() {
           <div className="mx-auto w-full max-w-md space-y-8 z-10">
             {/* Header branding */}
             <div className="text-center">
-              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 shadow-md shadow-slate-200 mb-4 text-white font-black text-2xl">
+              <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-slate-800 shadow-md shadow-slate-200 mb-4 text-white font-bold text-2xl">
                 H
               </div>
-              <h2 className="text-2xl font-extrabold text-slate-900 tracking-tight leading-none">{t('appName')}</h2>
-              <p className="text-xs text-slate-500 font-bold tracking-wider uppercase mt-2.5">
+              <h2 className="text-2xl font-bold text-slate-900 tracking-tight leading-none">{t('appName')}</h2>
+              <p className="text-xs text-slate-500 font-semibold tracking-wide uppercase mt-2.5">
                 {t('appSubtitle')}
               </p>
             </div>
@@ -263,7 +267,7 @@ function AppContent() {
                     setAuthMode('login');
                     setAuthError('');
                   }}
-                  className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     authMode === 'login' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -274,7 +278,7 @@ function AppContent() {
                     setAuthMode('signup');
                     setAuthError('');
                   }}
-                  className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
                     authMode === 'signup' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
                   }`}
                 >
@@ -294,7 +298,7 @@ function AppContent() {
               <form onSubmit={handleAuthSubmit} className="space-y-4">
                 {authMode === 'signup' && (
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('fullNameLabel')}</label>
+                    <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{t('fullNameLabel')}</label>
                     <div className="relative">
                       <User className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                       <input
@@ -310,7 +314,7 @@ function AppContent() {
                 )}
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('emailLabel')}</label>
+                  <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{t('emailLabel')}</label>
                   <div className="relative">
                     <Mail className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                     <input
@@ -325,7 +329,7 @@ function AppContent() {
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('passwordLabel')}</label>
+                  <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{t('passwordLabel')}</label>
                   <div className="relative">
                     <Lock className="absolute left-3.5 top-3.5 h-4 w-4 text-slate-400" />
                     <input
@@ -349,11 +353,11 @@ function AppContent() {
                 {authMode === 'signup' && (
                   <div className="grid grid-cols-2 gap-3 pt-1">
                     <div>
-                      <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('signUpAs')}</label>
+                      <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{t('signUpAs')}</label>
                       <select
                         value={role}
                         onChange={(e) => setRole(e.target.value as UserRole)}
-                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700 font-bold focus:outline-hidden cursor-pointer"
+                        className="w-full rounded-xl border border-slate-200 bg-slate-50 px-3.5 py-3 text-xs text-slate-700 font-semibold focus:outline-hidden cursor-pointer"
                       >
                         <option value="citizen">{t('citizenOption')}</option>
                         <option value="authority">{t('authorityOption')}</option>
@@ -361,7 +365,7 @@ function AppContent() {
                     </div>
                     {role === 'authority' && (
                       <div>
-                        <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">{t('departmentLabel')}</label>
+                        <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">{t('departmentLabel')}</label>
                         <select
                           value={department}
                           onChange={(e) => setDepartment(e.target.value)}
@@ -382,7 +386,7 @@ function AppContent() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3.5 text-sm font-bold text-white shadow-lg shadow-slate-200 transition-all cursor-pointer disabled:opacity-60"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3.5 text-sm font-semibold text-white shadow-lg shadow-slate-200 transition-all cursor-pointer disabled:opacity-60"
                 >
                   {isSubmitting ? (
                     <Loader2 className="h-4.5 w-4.5 animate-spin" />
@@ -411,7 +415,7 @@ function AppContent() {
                     onClick={() => handleQuickDemoBypass(demo)}
                     className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-200 hover:border-slate-400 hover:bg-slate-50 bg-white transition-all cursor-pointer text-center shadow-xs"
                   >
-                    <span className="text-[10px] font-extrabold text-slate-800">
+                    <span className="text-[10px] font-semibold text-slate-800">
                       {demo.role === 'admin' 
                         ? t('adminPortal').split(' ')[0] 
                         : demo.role === 'authority' 
@@ -434,7 +438,9 @@ function AppContent() {
 export default function App() {
   return (
     <LanguageProvider>
-      <AppContent />
+      <ToastProvider>
+        <AppContent />
+      </ToastProvider>
     </LanguageProvider>
   );
 }

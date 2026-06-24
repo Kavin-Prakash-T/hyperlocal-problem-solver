@@ -6,7 +6,9 @@ export interface UserProfile {
   email: string;
   role: UserRole;
   points: number;
+  reputationScore?: number; // Citizen reputation score (Trust Score, e.g., starting at 100)
   badges: string[];
+  department?: string; // For authorities
   createdAt: number;
 }
 
@@ -38,14 +40,26 @@ export interface Issue {
   department?: string;
   verificationCount: number;
   verifications: string[]; // List of user IDs who upvoted
+  urgencyVotes?: number;
+  duplicateVotes?: number;
+  invalidVotes?: number;
+  urgencyScore?: number;
+  riskLevel?: 'Low' | 'Medium' | 'High' | 'Extremely High';
+  suggestedResolutionTime?: string;
+  emergency?: boolean; // Critical safety indicator
+  resolutionConfidence?: number; // AI verification rating
+  resolutionSummary?: string; // AI verification statement
+  aiSummary?: string;
+  aiResolutionPlan?: string[];
+  publicSafetyAlert?: string;
+  environmentalImpactIndex?: number; // 1-5 environmental footprint rating
+  predictedHotspotRisk?: 'Low' | 'Medium' | 'High' | 'Severe'; // predictive hazard metric
+  mediaUrl?: string;
+  mediaType?: 'image' | 'video';
   createdAt: number;
   updatedAt: number;
   officialRemarks?: string;
   resolutionImageUrl?: string;
-  urgencyScore?: number;
-  aiSummary?: string;
-  mediaUrl?: string;
-  mediaType?: 'image' | 'video';
 }
 
 export interface Comment {
@@ -55,6 +69,8 @@ export interface Comment {
   userName: string;
   userRole: UserRole;
   content: string;
+  parentId?: string; // For nested sub-replies
+  translatedText?: string; // Translated view
   createdAt: number;
 }
 
@@ -74,5 +90,21 @@ export interface Notification {
   title: string;
   message: string;
   read: boolean;
+  createdAt: number;
+}
+
+export interface ChatMessage {
+  id: string;
+  userId: string;
+  sender: 'user' | 'ai';
+  content: string;
+  createdAt: number;
+}
+
+export interface AIInsight {
+  id: string;
+  title: string;
+  content: string;
+  category?: string;
   createdAt: number;
 }

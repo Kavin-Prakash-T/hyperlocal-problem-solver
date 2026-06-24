@@ -1,8 +1,6 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef } from 'react';
 import L from 'leaflet';
 import { Issue } from '../types';
-import { useTranslation } from '../lib/i18n';
-import { Locate, Navigation, Loader2 } from 'lucide-react';
 
 interface CivicMapProps {
   issues: Issue[];
@@ -12,25 +10,38 @@ interface CivicMapProps {
   onLocationSelect?: (lat: number, lng: number) => void;
   selectedLocation?: [number, number] | null;
   activeIssueId?: string | null;
+  showHeatmap?: boolean;
 }
 
+const getStatusColor = (status: string) => {
+  const statusColors: Record<string, string> = {
+    'Reported': '#ef4444',
+    'Under Review': '#f59e0b',
+    'Assigned': '#3b82f6',
+    'In Progress': '#6366f1',
+    'Resolved': '#10b981',
+    'Rejected': '#6b7280',
+  };
+  return statusColors[status] || '#6b7280';
+};
+
 const getMarkerIcon = (severity: string, isActive: boolean = false) => {
-  // Theme-compliant colors (Slate / Blue-slate / Accents)
-  let color = '#64748b'; // Low (Slate)
-  if (severity === 'Medium') color = '#3b82f6'; // Medium (Moderate Blue Accent)
-  else if (severity === 'High') color = '#2563eb'; // High (Deep Blue Accent)
-  else if (severity === 'Critical') color = '#dc2626'; // Critical (Red Accent)
-  
+  let color = '#3b82f6'; // Default: Blue
+  if (severity === 'Low') color = '#64748b';
+  else if (severity === 'High') color = '#f97316';
+  else if (severity === 'Critical') color = '#ef4444';
+
   const size = isActive ? 34 : 26;
-  const strokeWidth = isActive ? 3 : 1.5;
   const strokeColor = isActive ? '#0f172a' : '#ffffff';
+  const strokeWidth = isActive ? 2.5 : 1.5;
 
   const svgHtml = `
-    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg" style="filter: drop-shadow(0px 2px 3px rgba(0,0,0,0.3));">
       <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="${color}" stroke="${strokeColor}" stroke-width="${strokeWidth}"/>
-      <circle cx="12" cy="9" r="3.5" fill="#ffffff"/>
+      <circle cx="12" cy="9" r="3" fill="#ffffff"/>
     </svg>
   `;
+
   return L.divIcon({
     html: svgHtml,
     iconSize: [size, size],
@@ -40,66 +51,45 @@ const getMarkerIcon = (severity: string, isActive: boolean = false) => {
   });
 };
 
-const getYouAreHereIcon = () => {
-  const html = `
-    <div class="relative flex items-center justify-center">
-      <div class="absolute w-8 h-8 rounded-full bg-blue-500/20 animate-ping"></div>
-      <div class="absolute w-5 h-5 rounded-full bg-blue-500/40"></div>
-      <div class="w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white shadow-md"></div>
-    </div>
-  `;
-  return L.divIcon({
-    html,
-    iconSize: [32, 32],
-    iconAnchor: [16, 16],
-    className: 'you-are-here-marker'
-  });
-};
-
 export default function CivicMap({
   issues,
-  center = [12.9716, 77.5946], // Default City Location (Bangalore), will update with browser location if enabled
+  center,
   zoom = 13,
   interactive = false,
   onLocationSelect,
   selectedLocation,
-  activeIssueId
+  activeIssueId,
+  showHeatmap = false,
 }: CivicMapProps) {
-  const { t } = useTranslation();
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<L.Map | null>(null);
   const markersGroupRef = useRef<L.FeatureGroup | null>(null);
   const selectionMarkerRef = useRef<L.Marker | null>(null);
-  const userMarkerRef = useRef<L.Marker | null>(null);
-
-  const [userLoc, setUserLoc] = useState<[number, number] | null>(null);
-  const [isLocating, setIsLocating] = useState(false);
 
   // Initialize Map
   useEffect(() => {
     if (!mapContainerRef.current) return;
 
-    // Create Leaflet Map
+    const initialCenter = center || [12.9716, 77.5946]; // Default to Bangalore if center not specified
+
     const map = L.map(mapContainerRef.current, {
-      center: center,
+      center: initialCenter,
       zoom: zoom,
       scrollWheelZoom: true,
       zoomControl: true,
     });
 
-    // Add OpenStreetMap tiles with a clean, professional grey/blue-ish vibe if possible
+    // Standard OpenStreetMap tiles
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '© OpenStreetMap contributors'
     }).addTo(map);
 
-    // Feature group for issue markers
     const markersGroup = L.featureGroup().addTo(map);
 
     mapRef.current = map;
     markersGroupRef.current = markersGroup;
 
-    // Click handler for interactive selection
     if (interactive && onLocationSelect) {
       map.on('click', (e: L.LeafletMouseEvent) => {
         const { lat, lng } = e.latlng;
@@ -107,82 +97,20 @@ export default function CivicMap({
       });
     }
 
-    // Try auto-locating on load
-    requestUserLocation(true);
-
     return () => {
       map.remove();
       mapRef.current = null;
     };
   }, []);
 
-  // Request user location
-  const requestUserLocation = (isInitial: boolean = false) => {
-    if (!navigator.geolocation) return;
-    setIsLocating(true);
-
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        const { latitude, longitude } = position.coords;
-        const coords: [number, number] = [latitude, longitude];
-        setUserLoc(coords);
-        setIsLocating(false);
-
-        if (mapRef.current) {
-          // If interactive and we have onLocationSelect, auto-select for new reports
-          if (interactive && onLocationSelect && isInitial && !selectedLocation) {
-            onLocationSelect(latitude, longitude);
-          }
-
-          // Center the map
-          if (isInitial || !activeIssueId) {
-            mapRef.current.setView(coords, 14);
-          }
-        }
-      },
-      (error) => {
-        console.warn('Geolocation error:', error);
-        setIsLocating(false);
-        // Fall back to provided center/default
-        if (isInitial && mapRef.current) {
-          mapRef.current.setView(center, zoom);
-        }
-      },
-      { enableHighAccuracy: true, timeout: 8000, maximumAge: 0 }
-    );
-  };
-
-  // Sync Map center if provided from outside
+  // Update map center when prop changes
   useEffect(() => {
     if (mapRef.current && center) {
-      mapRef.current.setView(center, zoom);
+      mapRef.current.setView(center, mapRef.current.getZoom());
     }
   }, [center?.[0], center?.[1]]);
 
-  // Sync "You are here" marker
-  useEffect(() => {
-    if (!mapRef.current) return;
-
-    if (userLoc) {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.setLatLng(userLoc);
-      } else {
-        userMarkerRef.current = L.marker(userLoc, {
-          icon: getYouAreHereIcon(),
-          zIndexOffset: 1000,
-        })
-          .addTo(mapRef.current)
-          .bindTooltip(t('youAreHere'), { permanent: false, direction: 'top' });
-      }
-    } else {
-      if (userMarkerRef.current) {
-        userMarkerRef.current.remove();
-        userMarkerRef.current = null;
-      }
-    }
-  }, [userLoc, t]);
-
-  // Sync Selection Marker (for reporting issue)
+  // Sync selected location pin (when reporting an issue)
   useEffect(() => {
     if (!mapRef.current) return;
 
@@ -192,14 +120,14 @@ export default function CivicMap({
       } else {
         const pinIcon = L.divIcon({
           html: `
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2C8.13 2 5 5.13 5 9C5 14.25 12 22 12 22C12 22 19 14.25 19 9C19 5.13 15.87 2 12 2Z" fill="#10b981" stroke="#ffffff" stroke-width="2"/>
-              <circle cx="12" cy="9" r="3" fill="#ffffff"/>
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" style="color: #4f46e5; filter: drop-shadow(0px 2px 4px rgba(0,0,0,0.4));">
+              <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"></path>
+              <circle cx="12" cy="10" r="3"></circle>
             </svg>
           `,
           iconSize: [32, 32],
           iconAnchor: [16, 32],
-          className: 'selection-marker'
+          className: 'custom-selection-marker'
         });
         selectionMarkerRef.current = L.marker(selectedLocation, { icon: pinIcon }).addTo(mapRef.current);
       }
@@ -212,101 +140,97 @@ export default function CivicMap({
     }
   }, [selectedLocation]);
 
-  // Render/Sync Issue Markers
+  // Sync issues/hotspots and active markers
   useEffect(() => {
     if (!mapRef.current || !markersGroupRef.current) return;
 
-    // Clear existing markers
     markersGroupRef.current.clearLayers();
 
-    // Map issues to markers
     issues.forEach((issue) => {
       if (issue.latitude && issue.longitude) {
         const isActive = activeIssueId === issue.id;
-        const icon = getMarkerIcon(issue.severity, isActive);
-        
-        const marker = L.marker([issue.latitude, issue.longitude], { icon });
 
-        const statusColors: Record<string, string> = {
-          'Reported': '#ef4444',
-          'Under Review': '#f59e0b',
-          'Assigned': '#3b82f6',
-          'In Progress': '#6366f1',
-          'Resolved': '#10b981',
-          'Rejected': '#6b7280',
-        };
-        const statusColor = statusColors[issue.status] || '#6b7280';
+        if (showHeatmap && issue.status !== 'Resolved' && issue.status !== 'Rejected') {
+          // Render heatmap visualization circle
+          let heatColor = '#ef4444';
+          if (issue.severity === 'High') heatColor = '#f97316';
+          else if (issue.severity === 'Medium') heatColor = '#eab308';
+          else if (issue.severity === 'Low') heatColor = '#3b82f6';
 
-        const popupContent = `
-          <div style="font-family: system-ui, sans-serif; min-width: 180px;">
-            <h4 style="margin: 0 0 4px 0; font-weight: 600; font-size: 14px; color: #0f172a;">${issue.title}</h4>
-            <div style="display: flex; gap: 4px; margin-bottom: 8px;">
-              <span style="background-color: ${statusColor}; color: white; font-size: 10px; padding: 1px 6px; border-radius: 4px; font-weight: 500;">
-                ${issue.status}
-              </span>
-              <span style="background-color: #f1f5f9; color: #475569; font-size: 10px; padding: 1px 6px; border-radius: 4px;">
-                ${issue.category}
-              </span>
+          const circle = L.circle([issue.latitude, issue.longitude], {
+            color: heatColor,
+            fillColor: heatColor,
+            fillOpacity: 0.35,
+            radius: 150,
+            weight: 1.5
+          });
+
+          const popupContent = `
+            <div style="font-family: system-ui, sans-serif; padding: 2px;">
+              <div style="font-size: 10px; font-weight: 700; color: ${heatColor}; text-transform: uppercase; margin-bottom: 2px;">
+                Active Hotspot Area
+              </div>
+              <h4 style="margin: 0 0 4px 0; font-weight: 700; font-size: 13px; color: #1e293b;">${issue.title}</h4>
+              <p style="margin: 0; font-size: 11px; color: #64748b;">${issue.category} • Severity: <strong>${issue.severity}</strong></p>
             </div>
-            <p style="margin: 0 0 8px 0; font-size: 12px; color: #475569; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical;">
-              ${issue.description}
-            </p>
-            <div style="font-size: 11px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 6px;">
-              Severity: <strong>${issue.severity}</strong><br/>
-              Urgency Score: <strong>${issue.urgencyScore || 0}%</strong>
+          `;
+          circle.bindPopup(popupContent, { maxWidth: 200 });
+          markersGroupRef.current?.addLayer(circle);
+        } else {
+          // Render standard pin marker
+          const icon = getMarkerIcon(issue.severity, isActive);
+          const marker = L.marker([issue.latitude, issue.longitude], { icon });
+
+          const statusColor = getStatusColor(issue.status);
+
+          const popupContent = `
+            <div style="font-family: system-ui, sans-serif; min-width: 180px; padding: 2px;">
+              <h4 style="margin: 0 0 4px 0; font-weight: 700; font-size: 13px; color: #1e293b;">${issue.title}</h4>
+              <div style="display: flex; gap: 4px; margin-bottom: 6px;">
+                <span style="background-color: ${statusColor}; color: white; font-size: 9px; padding: 2px 6px; border-radius: 4px; font-weight: 600;">
+                  ${issue.status}
+                </span>
+                <span style="background-color: #f1f5f9; color: #475569; font-size: 9px; padding: 2px 6px; border-radius: 4px; border: 1px solid #e2e8f0;">
+                  ${issue.category}
+                </span>
+              </div>
+              <p style="margin: 0 0 8px 0; font-size: 11px; color: #475569; line-height: 1.4; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;">
+                ${issue.description}
+              </p>
+              <div style="font-size: 10px; color: #64748b; border-top: 1px solid #f1f5f9; padding-top: 6px; display: flex; justify-content: space-between;">
+                <span>Priority: <strong>${issue.severity}</strong></span>
+                <span>Upvotes: <strong>${issue.verificationCount || 0}</strong></span>
+              </div>
             </div>
-          </div>
-        `;
+          `;
 
-        marker.bindPopup(popupContent);
-        markersGroupRef.current?.addLayer(marker);
+          marker.bindPopup(popupContent, { maxWidth: 220 });
+          markersGroupRef.current?.addLayer(marker);
 
-        if (isActive) {
-          marker.openPopup();
-          mapRef.current?.setView([issue.latitude, issue.longitude], 15);
+          if (isActive) {
+            marker.openPopup();
+            mapRef.current?.setView([issue.latitude, issue.longitude], 15);
+          }
         }
       }
     });
 
-    // Auto-fit bounds if we have issues and not in interactive mode
+    // Auto-fit bounds if issues exist and not in specific interactive modes
     if (issues.length > 0 && !selectedLocation && !activeIssueId && !interactive) {
       try {
         const bounds = markersGroupRef.current.getBounds();
         if (bounds.isValid()) {
-          mapRef.current.fitBounds(bounds, { padding: [40, 40] });
+          mapRef.current.fitBounds(bounds, { padding: [40, 40], maxZoom: 15 });
         }
       } catch (e) {
         // Safe bypass
       }
     }
-  }, [issues, activeIssueId, selectedLocation]);
+  }, [issues, activeIssueId, selectedLocation, showHeatmap]);
 
   return (
-    <div className="relative w-full h-full border border-slate-200 rounded-2xl overflow-hidden shadow-xs">
-      <div id="leaflet-map-element" ref={mapContainerRef} className="w-full h-full z-10" />
-      
-      {/* Geolocation Trigger Button */}
-      <div className="absolute bottom-4 right-4 z-20">
-        <button
-          type="button"
-          onClick={() => requestUserLocation(false)}
-          disabled={isLocating}
-          className="flex items-center gap-2 px-3.5 py-2.5 bg-white hover:bg-slate-50 text-slate-800 rounded-xl shadow-lg border border-slate-100 hover:border-slate-200 transition-all text-xs font-bold pointer-events-auto cursor-pointer"
-        >
-          {isLocating ? (
-            <Loader2 className="h-4 w-4 animate-spin text-slate-500" />
-          ) : (
-            <Locate className="h-4 w-4 text-slate-700" />
-          )}
-          <span>{t('useCurrentLocation')}</span>
-        </button>
-      </div>
-
-      {interactive && (
-        <div className="absolute top-3 left-3 md:left-12 z-20 bg-white/95 backdrop-blur-xs px-3 py-1.5 rounded-lg shadow-sm border border-slate-100 text-xs text-slate-600 pointer-events-none">
-          {selectedLocation ? t('locationSelected') : t('clickMapToSelect')}
-        </div>
-      )}
+    <div className="relative w-full h-full border border-slate-200 rounded-2xl overflow-hidden bg-slate-50 shadow-xs">
+      <div ref={mapContainerRef} className="w-full h-full z-10" />
     </div>
   );
 }

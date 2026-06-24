@@ -1,0 +1,179 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Citizen, authority, or administrator account profile with reputation tracker and achievement badges.",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "role": { "type": "string", "enum": ["citizen", "authority", "admin"] },
+        "points": { "type": "number" },
+        "reputationScore": { "type": "number" },
+        "badges": { "type": "array" },
+        "department": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["uid", "name", "email", "role", "points", "reputationScore", "badges", "createdAt"]
+    },
+    "Issue": {
+      "title": "Issue",
+      "description": "Civic complaint reported by a citizen, analyzed by Gemini, and assigned to municipal authority departments.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "category": { "type": "string" },
+        "severity": { "type": "string", "enum": ["Low", "Medium", "High", "Critical"] },
+        "status": { "type": "string", "enum": ["Reported", "Under Review", "Assigned", "In Progress", "Resolved", "Rejected"] },
+        "latitude": { "type": "number" },
+        "longitude": { "type": "number" },
+        "address": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "mediaUrl": { "type": "string" },
+        "mediaType": { "type": "string", "enum": ["image", "video"] },
+        "reporterId": { "type": "string" },
+        "reporterName": { "type": "string" },
+        "assignedTo": { "type": "string" },
+        "assignedToName": { "type": "string" },
+        "department": { "type": "string" },
+        "verificationCount": { "type": "number" },
+        "verifications": { "type": "array" },
+        "urgencyVotes": { "type": "number" },
+        "duplicateVotes": { "type": "number" },
+        "invalidVotes": { "type": "number" },
+        "urgencyScore": { "type": "number" },
+        "riskLevel": { "type": "string", "enum": ["Low", "Medium", "High", "Extremely High"] },
+        "suggestedResolutionTime": { "type": "string" },
+        "emergency": { "type": "boolean" },
+        "resolutionConfidence": { "type": "number" },
+        "resolutionSummary": { "type": "string" },
+        "aiSummary": { "type": "string" },
+        "createdAt": { "type": "number" },
+        "updatedAt": { "type": "number" },
+        "officialRemarks": { "type": "string" }
+      },
+      "required": ["title", "description", "category", "severity", "status", "latitude", "longitude", "address", "reporterId", "reporterName", "verificationCount", "verifications", "createdAt", "updatedAt"]
+    },
+    "Vote": {
+      "title": "Vote",
+      "description": "A vote cast by a citizen on a specific ticket (e.g., upvote/confirm, mark urgent, mark duplicate, flag invalid).",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "issueId": { "type": "string" },
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["confirm", "urgent", "duplicate", "invalid"] },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["issueId", "userId", "type", "createdAt"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "Civic ticket discussion comment or response thread log.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "issueId": { "type": "string" },
+        "userId": { "type": "string" },
+        "userName": { "type": "string" },
+        "userRole": { "type": "string" },
+        "content": { "type": "string" },
+        "parentId": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["issueId", "userId", "userName", "userRole", "content", "createdAt"]
+    },
+    "StatusUpdate": {
+      "title": "StatusUpdate",
+      "description": "Municipal tracking updates with potential proof files.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "issueId": { "type": "string" },
+        "status": { "type": "string" },
+        "updaterName": { "type": "string" },
+        "remarks": { "type": "string" },
+        "proofImageUrl": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["issueId", "status", "updaterName", "remarks", "createdAt"]
+    },
+    "ChatMessage": {
+      "title": "ChatMessage",
+      "description": "User message exchange log with the AI Civic Assistant.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "sender": { "type": "string", "enum": ["user", "ai"] },
+        "content": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "sender", "content", "createdAt"]
+    },
+    "Notification": {
+      "title": "Notification",
+      "description": "System alerts dispatched to citizens regarding status updates, badge releases, etc.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "message": { "type": "string" },
+        "read": { "type": "boolean" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["userId", "title", "message", "read", "createdAt"]
+    },
+    "AIInsight": {
+      "title": "AIInsight",
+      "description": "Aggregated regional hotspots trends compiled monthly or on-demand.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "content": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "number" }
+      },
+      "required": ["title", "content", "createdAt"]
+    }
+  },
+  "firestore": {
+    "users/{userId}": {
+      "schema": "UserProfile",
+      "description": "User profiles database mapping roles, scores, and departments."
+    },
+    "issues/{issueId}": {
+      "schema": "Issue",
+      "description": "Central municipal ticket database."
+    },
+    "issues/{issueId}/votes/{voteId}": {
+      "schema": "Vote",
+      "description": "Tracks subcollection of user votes on an issue to prevent voting manipulation."
+    },
+    "comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Discussion comments shared on ticket folders."
+    },
+    "statusUpdates/{updateId}": {
+      "schema": "StatusUpdate",
+      "description": "Audit trail for ticket status updates."
+    },
+    "chatMessages/{messageId}": {
+      "schema": "ChatMessage",
+      "description": "AI Complaint Assistant chatbot logs database."
+    },
+    "notifications/{notificationId}": {
+      "schema": "Notification",
+      "description": "User system notification collection."
+    },
+    "aiInsights/{insightId}": {
+      "schema": "AIInsight",
+      "description": "AI compiled regional and monthly reports database."
+    }
+  }
+}

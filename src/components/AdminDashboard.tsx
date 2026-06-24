@@ -8,33 +8,27 @@ import {
   updateDoc, 
   addDoc, 
   orderBy, 
-  getDocs,
   setDoc
 } from '../lib/firebase';
-import { Issue, UserProfile, IssueSeverity, IssueStatus } from '../types';
+import { Issue, UserProfile, IssueStatus } from '../types';
 import CivicMap from './CivicMap';
 import { useTranslation } from '../lib/i18n';
+import { useToast } from './Toast';
 import { 
-  Users, 
   FolderLock, 
-  ShieldAlert, 
   Sparkles, 
   Download, 
-  Plus, 
   Building, 
   Briefcase, 
-  CheckCircle,
   Loader2, 
-  BarChart2, 
-  MapPin, 
-  Trash2,
-  Lock,
   UserCheck,
-  X
+  X,
+  Users
 } from 'lucide-react';
 
 export default function AdminDashboard() {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
@@ -65,6 +59,8 @@ export default function AdminDashboard() {
         fetched.push({ id: doc.id, ...doc.data() } as Issue);
       });
       setIssues(fetched);
+    }, (error) => {
+      console.error('Failed to load issues:', error);
     });
     return unsubscribe;
   }, []);
@@ -87,6 +83,8 @@ export default function AdminDashboard() {
         fetchedUsers.push({ uid: doc.id, ...doc.data() } as UserProfile);
       });
       setUsers(fetchedUsers);
+    }, (error) => {
+      console.error('Failed to load users:', error);
     });
     return unsubscribe;
   }, []);
@@ -94,7 +92,7 @@ export default function AdminDashboard() {
   // AI Insights Generation Proxy
   const generateAiHotspotInsights = async () => {
     if (issues.length === 0) {
-      alert('Please wait for reported issues to populate before generating hotspot analysis.');
+      toast('Please wait for reported issues to populate before generating hotspot analysis.', 'warning');
       return;
     }
 
@@ -121,9 +119,11 @@ export default function AdminDashboard() {
 
       const result = await response.json();
       setAiInsights(result.insights || 'No substantial trends detected.');
+      toast('Hotspot analysis complete!', 'success');
     } catch (err) {
       console.error('Failed to analyze hotspots:', err);
       setAiInsights('Error: Unable to analyze city hotspots. Confirm your Gemini API key credentials and internet connectivity.');
+      toast('AI insights failed. Check credentials.', 'error');
     } finally {
       setIsGeneratingInsights(false);
     }
@@ -131,7 +131,10 @@ export default function AdminDashboard() {
 
   // CSV Data Exporter
   const exportToCSV = () => {
-    if (issues.length === 0) return alert('No issues available to export.');
+    if (issues.length === 0) {
+      toast('No issues available to export.', 'warning');
+      return;
+    }
 
     const headers = ['ID', 'Title', 'Category', 'Severity', 'Status', 'Department', 'Reporter', 'Upvotes', 'Address', 'Latitude', 'Longitude', 'CreatedAt'];
     const rows = issues.map(issue => [
@@ -159,12 +162,16 @@ export default function AdminDashboard() {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+    toast('Database exported successfully as CSV!', 'success');
   };
 
   // Create Authority Role pre-auth mapping
   const handleCreateAuthority = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!authName || !authEmail) return alert('Please provide name and email.');
+    if (!authName || !authEmail) {
+      toast('Please provide name and email.', 'warning');
+      return;
+    }
 
     setIsCreatingAuthority(true);
     try {
@@ -181,12 +188,12 @@ export default function AdminDashboard() {
         createdAt: Date.now()
       });
 
-      alert(`Pre-assigned authority role created for ${authName} (${authEmail}). They will receive the authority dashboard upon creating their account with this email.`);
+      toast(`Designated ${authName} as Official Authority successfully!`, 'success');
       setAuthName('');
       setAuthEmail('');
     } catch (err) {
       console.error('Failed to create pre-assigned authority:', err);
-      alert('Error saving authority record.');
+      toast('Error saving authority record.', 'error');
     } finally {
       setIsCreatingAuthority(false);
     }
@@ -215,10 +222,10 @@ export default function AdminDashboard() {
         createdAt: Date.now()
       });
 
-      alert(`Issue re-routed and assigned to ${assignDept}.`);
+      toast(`Issue re-routed and assigned to ${assignDept}.`, 'success');
     } catch (err) {
       console.error('Assignment failed:', err);
-      alert('Failed to re-route department assignment.');
+      toast('Failed to re-route department assignment.', 'error');
     } finally {
       setIsAssigning(false);
     }
@@ -227,37 +234,37 @@ export default function AdminDashboard() {
   // Update specific user roles
   const handleRoleToggle = async (userId: string, currentRole: string) => {
     const nextRole = currentRole === 'citizen' ? 'authority' : 'citizen';
-    if (!confirm(`Are you sure you want to change this user's role to ${nextRole}?`)) return;
-
+    
     try {
       await updateDoc(doc(db, 'users', userId), {
         role: nextRole
       });
-      alert('User role modified successfully!');
+      toast(`User role modified to ${nextRole} successfully!`, 'success');
     } catch (err) {
       console.error('Failed to modify user role:', err);
+      toast('Failed to modify user role.', 'error');
     }
   };
 
   return (
-    <div className="mx-auto max-w-7xl py-4 sm:py-6 lg:py-8">
+    <div className="mx-auto max-w-7xl py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       {/* Welcome header */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-8">
         <div>
-          <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
             <FolderLock className="h-5.5 w-5.5 text-slate-800" />
-            {t('adminPanelTitle')}
+            {t('adminDashboardTitle')}
           </h2>
-          <p className="text-xs text-slate-500 mt-1">{t('adminPanelSub')}</p>
+          <p className="text-xs text-slate-500 mt-1">{t('systemStats')}</p>
         </div>
         
         {/* Actions header */}
         <button
           onClick={exportToCSV}
-          className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-bold text-slate-700 shadow-xs cursor-pointer hover:border-slate-300 transition-all shrink-0"
+          className="flex items-center justify-center gap-1.5 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 px-4 py-2.5 text-xs font-semibold text-slate-700 shadow-xs cursor-pointer hover:border-slate-300 transition-all shrink-0"
         >
           <Download className="h-4 w-4 text-slate-400" />
-          <span>{t('exportDatabase')}</span>
+          <span>Export Database</span>
         </button>
       </div>
 
@@ -265,19 +272,19 @@ export default function AdminDashboard() {
       <div className="flex bg-slate-100 p-1 rounded-xl border border-slate-200 max-w-xs mb-8">
         <button
           onClick={() => setActiveTab('issues')}
-          className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
             activeTab === 'issues' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          {t('auditIssuesTab')}
+          Audit Issues
         </button>
         <button
           onClick={() => setActiveTab('users')}
-          className={`flex-1 text-center py-2 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+          className={`flex-1 text-center py-2 rounded-lg text-xs font-semibold transition-all cursor-pointer ${
             activeTab === 'users' ? 'bg-white text-slate-900 shadow-xs' : 'text-slate-500 hover:text-slate-800'
           }`}
         >
-          {t('manageUsersTab')}
+          Manage Users
         </button>
       </div>
 
@@ -294,20 +301,20 @@ export default function AdminDashboard() {
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
                 <div className="flex items-center gap-2">
                   <Sparkles className="h-5 w-5 text-slate-300 fill-white/10" />
-                  <h3 className="font-extrabold text-xs tracking-wider uppercase text-slate-300">{t('geminiInsightsTitle')}</h3>
+                  <h3 className="font-semibold text-xs tracking-wider uppercase text-slate-300">{t('aiAssistantTitle')}</h3>
                 </div>
                 <button
                   onClick={generateAiHotspotInsights}
                   disabled={isGeneratingInsights}
-                  className="rounded-lg bg-white text-slate-950 hover:bg-slate-100 text-xs font-bold px-3.5 py-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs self-start sm:self-auto"
+                  className="rounded-lg bg-white text-slate-950 hover:bg-slate-100 text-xs font-semibold px-3.5 py-2 transition-colors cursor-pointer disabled:opacity-50 shadow-xs self-start sm:self-auto"
                 >
                   {isGeneratingInsights ? (
                     <div className="flex items-center gap-1.5">
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-slate-950" />
-                      <span>{t('analyzingClusters')}</span>
+                      <span>Analyzing...</span>
                     </div>
                   ) : (
-                    <span>{t('generateInsightsBtn')}</span>
+                    <span>Generate insights</span>
                   )}
                 </button>
               </div>
@@ -318,7 +325,7 @@ export default function AdminDashboard() {
                 </div>
               ) : (
                 <p className="text-xs text-slate-300">
-                  {t('geminiInsightsDesc')}
+                  Click to run real-time cluster analyses, hotspot assessments, and AI routing optimization algorithms across all municipal tickets.
                 </p>
               )}
             </div>
@@ -326,7 +333,7 @@ export default function AdminDashboard() {
             {/* General Queue List */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
               <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-                <h3 className="font-extrabold text-slate-900 text-sm">{t('allMunicipalTickets')} ({issues.length})</h3>
+                <h3 className="font-bold text-slate-900 text-sm">All Municipal Tickets ({issues.length})</h3>
               </div>
               <div className="divide-y divide-slate-100 max-h-[380px] overflow-y-auto">
                 {issues.length === 0 ? (
@@ -342,8 +349,8 @@ export default function AdminDashboard() {
                     >
                       <div className="min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <h4 className="text-xs font-extrabold text-slate-800 truncate">{issue.title}</h4>
-                          <span className="text-[9px] font-bold bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md shrink-0">
+                          <h4 className="text-xs font-semibold text-slate-800 truncate">{issue.title}</h4>
+                          <span className="text-[9px] font-semibold bg-slate-100 border border-slate-200 text-slate-600 px-1.5 py-0.5 rounded-md shrink-0">
                             {issue.category}
                           </span>
                         </div>
@@ -351,10 +358,10 @@ export default function AdminDashboard() {
                       </div>
 
                       <div className="flex items-center gap-3 shrink-0">
-                        <span className="text-[10px] text-slate-400 font-bold hidden sm:inline">
-                          Dept: <strong className="text-slate-600">{issue.department || 'Unassigned'}</strong>
+                        <span className="text-[10px] text-slate-400 font-semibold hidden sm:inline">
+                          Dept: <strong className="text-slate-600 font-semibold">{issue.department || 'Unassigned'}</strong>
                         </span>
-                        <span className="text-[10px] font-bold text-slate-800 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md shrink-0">
+                        <span className="text-[10px] font-semibold text-slate-800 bg-slate-50 border border-slate-200 px-2 py-0.5 rounded-md shrink-0">
                           {issue.status}
                         </span>
                       </div>
@@ -372,8 +379,8 @@ export default function AdminDashboard() {
                 <div className="border-b border-slate-100 pb-3">
                   <div className="flex justify-between items-start gap-2">
                     <div>
-                      <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Department Assignment Console</span>
-                      <h3 className="font-extrabold text-slate-900 text-sm mt-0.5 leading-tight">{selectedIssue.title}</h3>
+                      <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider">Department Assignment Console</span>
+                      <h3 className="font-semibold text-slate-900 text-sm mt-0.5 leading-tight">{selectedIssue.title}</h3>
                     </div>
                     <button 
                       onClick={() => setSelectedIssue(null)}
@@ -399,7 +406,7 @@ export default function AdminDashboard() {
                         src={selectedIssue.mediaUrl || selectedIssue.imageUrl} 
                         alt="Civic report media evidence" 
                         className="object-cover max-h-48 w-full" 
-                      />
+                    />
                     )}
                   </div>
                 )}
@@ -407,30 +414,30 @@ export default function AdminDashboard() {
                 <div className="bg-slate-50 p-4 rounded-xl space-y-2 text-xs text-slate-600 border border-slate-200">
                   <div className="flex justify-between">
                     <span>Current Department:</span>
-                    <strong className="text-slate-800">{selectedIssue.department || 'Unassigned'}</strong>
+                    <strong className="text-slate-800 font-semibold">{selectedIssue.department || 'Unassigned'}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Severity Rank:</span>
-                    <strong className="text-slate-800">{selectedIssue.severity}</strong>
+                    <strong className="text-slate-800 font-semibold">{selectedIssue.severity}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Reporter:</span>
-                    <strong className="text-slate-800">{selectedIssue.reporterName}</strong>
+                    <strong className="text-slate-800 font-semibold">{selectedIssue.reporterName}</strong>
                   </div>
                   <div className="flex justify-between">
                     <span>Pin coordinates:</span>
-                    <strong className="text-slate-800 font-mono text-[10px]">{selectedIssue.latitude.toFixed(5)}, {selectedIssue.longitude.toFixed(5)}</strong>
+                    <strong className="text-slate-800 font-semibold font-mono text-[10px]">{selectedIssue.latitude.toFixed(5)}, {selectedIssue.longitude.toFixed(5)}</strong>
                   </div>
                 </div>
 
                 {/* Form to assign department */}
                 <form onSubmit={handleAssignDepartment} className="space-y-4">
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Route to Department</label>
+                    <label className="block text-[10px] font-medium text-slate-500 uppercase mb-1.5">Route to Department</label>
                     <select
                       value={assignDept}
                       onChange={(e) => setAssignDept(e.target.value)}
-                      className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-700 focus:outline-hidden font-bold cursor-pointer"
+                      className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-700 focus:outline-hidden font-semibold cursor-pointer"
                     >
                       <option value="Road Maintenance">Road Maintenance</option>
                       <option value="Waste Management">Waste Management</option>
@@ -445,7 +452,7 @@ export default function AdminDashboard() {
                   <button
                     type="submit"
                     disabled={isAssigning}
-                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3 text-xs font-bold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                    className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3 text-xs font-semibold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                   >
                     {isAssigning ? (
                       <>
@@ -473,32 +480,32 @@ export default function AdminDashboard() {
       ) : (
         /* TAB 2: MANAGE USERS */
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 lg:gap-8 items-start">
-          {/* Left: User audit database */}
+          {/* Left: User directory */}
           <div className="lg:col-span-7 bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
             <div className="px-5 py-4 border-b border-slate-100 bg-slate-50">
-              <h3 className="font-extrabold text-slate-900 text-sm">Citizen & Officials Directory ({users.length})</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Citizen & Officials Directory ({users.length})</h3>
             </div>
             <div className="divide-y divide-slate-100 max-h-[480px] overflow-y-auto">
               {users.map((u) => (
                 <div key={u.uid} className="p-4 sm:p-5 flex items-center justify-between gap-4 hover:bg-slate-50/50 transition-all">
                   <div className="min-w-0">
-                    <h4 className="text-xs font-bold text-slate-900 truncate">{u.name}</h4>
+                    <h4 className="text-xs font-semibold text-slate-900 truncate">{u.name}</h4>
                     <p className="text-[11px] text-slate-400 truncate">{u.email}</p>
                   </div>
 
                   <div className="flex items-center gap-3 shrink-0">
                     <div className="text-right">
-                      <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600`}>
+                      <span className={`text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full border border-slate-200 bg-slate-50 text-slate-600`}>
                         {u.role}
                       </span>
                       {u.role === 'citizen' && (
-                        <p className="text-[10px] text-slate-400 font-bold mt-0.5">{u.points || 0} Points</p>
+                        <p className="text-[10px] text-slate-400 font-semibold mt-0.5">{u.points || 0} Points</p>
                       )}
                     </div>
 
                     <button
                       onClick={() => handleRoleToggle(u.uid, u.role)}
-                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-bold px-3 py-1.5 text-slate-600 cursor-pointer shadow-xs transition-colors"
+                      className="rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-[10px] font-semibold px-3 py-1.5 text-slate-600 cursor-pointer shadow-xs transition-colors"
                     >
                       Toggle Role
                     </button>
@@ -511,13 +518,13 @@ export default function AdminDashboard() {
           {/* Right: Designate Authority Accounts */}
           <div className="lg:col-span-5 bg-white rounded-2xl border border-slate-200 shadow-xs p-5 sm:p-6 space-y-5">
             <div>
-              <h3 className="font-extrabold text-slate-900 text-sm">Designate Municipal Authority</h3>
+              <h3 className="font-bold text-slate-900 text-sm">Designate Municipal Authority</h3>
               <p className="text-xs text-slate-500 mt-1 leading-relaxed">Pre-assign specific email registrations to inherit authority status on account creation.</p>
             </div>
 
             <form onSubmit={handleCreateAuthority} className="space-y-4">
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Official Name</label>
+                <label className="block text-[10px] font-medium text-slate-500 uppercase mb-1.5">Official Name</label>
                 <input
                   type="text"
                   required
@@ -529,7 +536,7 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Official Email</label>
+                <label className="block text-[10px] font-medium text-slate-500 uppercase mb-1.5">Official Email</label>
                 <input
                   type="email"
                   required
@@ -541,11 +548,11 @@ export default function AdminDashboard() {
               </div>
 
               <div>
-                <label className="block text-[10px] font-bold text-slate-500 uppercase mb-1.5">Assigned Department</label>
+                <label className="block text-[10px] font-medium text-slate-500 uppercase mb-1.5">Assigned Department</label>
                 <select
                   value={authDept}
                   onChange={(e) => setAuthDept(e.target.value)}
-                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-700 focus:outline-hidden font-bold cursor-pointer"
+                  className="w-full text-xs rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-slate-700 focus:outline-hidden font-semibold cursor-pointer"
                 >
                   <option value="Road Maintenance">Road Maintenance</option>
                   <option value="Waste Management">Waste Management</option>
@@ -560,7 +567,7 @@ export default function AdminDashboard() {
               <button
                 type="submit"
                 disabled={isCreatingAuthority}
-                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3 text-xs font-bold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer"
+                className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 py-3 text-xs font-semibold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer"
               >
                 {isCreatingAuthority ? (
                   <Loader2 className="h-4 w-4 animate-spin" />

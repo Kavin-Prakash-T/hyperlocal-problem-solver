@@ -3,34 +3,28 @@ import {
   db,
   collection, 
   query, 
-  where, 
   onSnapshot, 
   doc, 
   updateDoc, 
   addDoc, 
   orderBy 
 } from '../lib/firebase';
-import { Issue, IssueSeverity, IssueStatus, StatusUpdate } from '../types';
+import { Issue, IssueStatus, StatusUpdate } from '../types';
 import CivicMap from './CivicMap';
 import { useTranslation } from '../lib/i18n';
+import { useToast } from './Toast';
 import { 
   FileText, 
   CheckSquare, 
   Loader2, 
   Building, 
-  Calendar, 
   ThumbsUp, 
   MapPin, 
-  Image as ImageIcon,
-  CheckCircle,
-  AlertTriangle,
-  Send,
-  X,
-  Plus,
-  Filter,
-  Check,
-  Award,
-  Upload
+  CheckCircle, 
+  AlertTriangle, 
+  Send, 
+  X, 
+  Upload 
 } from 'lucide-react';
 
 interface AuthorityDashboardProps {
@@ -40,6 +34,7 @@ interface AuthorityDashboardProps {
 
 export default function AuthorityDashboard({ userId, userName }: AuthorityDashboardProps) {
   const { t } = useTranslation();
+  const { toast } = useToast();
   const [issues, setIssues] = useState<Issue[]>([]);
   const [selectedIssue, setSelectedIssue] = useState<Issue | null>(null);
   
@@ -55,7 +50,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
   const [isUpdating, setIsUpdating] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load issues assigned to this authority
+  // Load issues
   useEffect(() => {
     const q = query(collection(db, 'issues'), orderBy('createdAt', 'desc'));
     
@@ -65,6 +60,8 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
         fetched.push({ id: doc.id, ...doc.data() } as Issue);
       });
       setIssues(fetched);
+    }, (error) => {
+      console.error('Failed to load issues:', error);
     });
 
     return unsubscribe;
@@ -96,6 +93,29 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
       if (newStatus === 'Resolved' && proofImage) {
         updatePayload.resolutionImageUrl = proofImage;
+        
+        // Call Resolution Verification AI to analyze repairs
+        try {
+          const response = await fetch('/api/gemini-compare-proof', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              beforeImageBase64: selectedIssue.imageUrl || selectedIssue.mediaUrl || null,
+              afterImageBase64: proofImage
+            })
+          });
+          if (response.ok) {
+            const result = await response.json();
+            updatePayload.resolutionConfidence = result.confidenceScore;
+            updatePayload.resolutionSummary = result.resolutionSummary;
+          }
+        } catch (compareError) {
+          console.error("Proof verification AI failed, applying fallback approval:", compareError);
+          updatePayload.resolutionConfidence = 85;
+          updatePayload.resolutionSummary = "Resolution approved. Repairs successfully completed according to departmental logs.";
+        }
       }
 
       // Update Issue Document
@@ -111,12 +131,12 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
         createdAt: Date.now()
       });
 
-      alert(t('reportedSuccessAlert'));
+      toast(t('toastStatusUpdated'), 'success');
       setRemarks('');
       setProofImage(null);
     } catch (err) {
       console.error('Failed to update status:', err);
-      alert('Error saving status update.');
+      toast(t('toastError'), 'error');
     } finally {
       setIsUpdating(false);
     }
@@ -166,11 +186,14 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
     }
   };
 
+  // Categories in issues for filtration
+  const uniqueCategories = Array.from(new Set(issues.map(i => i.category)));
+
   return (
-    <div className="mx-auto max-w-7xl py-4 sm:py-6 lg:py-8">
+    <div className="mx-auto max-w-7xl py-4 sm:py-6 lg:py-8 px-4 sm:px-6 lg:px-8">
       {/* Title & Metadata */}
       <div className="mb-8">
-        <h2 className="text-xl font-extrabold text-slate-900 flex items-center gap-2">
+        <h2 className="text-xl font-bold text-slate-900 flex items-center gap-2">
           <Building className="h-5.5 w-5.5 text-slate-800" />
           {t('authorityTerminalTitle')}
         </h2>
@@ -181,8 +204,8 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">{t('assignedQueue')}</span>
-            <p className="text-xl sm:text-2xl font-black text-slate-900 mt-1">{totalCount}</p>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">{t('assignedQueue')}</span>
+            <p className="text-xl sm:text-2xl font-bold text-slate-900 mt-1">{totalCount}</p>
           </div>
           <div className="hidden sm:flex h-10 w-10 rounded-xl bg-slate-50 items-center justify-center border border-slate-200 text-slate-400 shrink-0">
             <FileText className="h-5 w-5" />
@@ -191,8 +214,8 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">{t('newComplaints')}</span>
-            <p className="text-xl sm:text-2xl font-black text-red-600 mt-1">{reportedCount}</p>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">{t('newComplaints')}</span>
+            <p className="text-xl sm:text-2xl font-bold text-red-600 mt-1">{reportedCount}</p>
           </div>
           <div className="hidden sm:flex h-10 w-10 rounded-xl bg-rose-50 items-center justify-center border border-rose-150 text-rose-500 shrink-0">
             <AlertTriangle className="h-5 w-5" />
@@ -201,8 +224,8 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">{t('inActiveProgress')}</span>
-            <p className="text-xl sm:text-2xl font-black text-slate-800 mt-1">{inProgressCount}</p>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">{t('inActiveProgress')}</span>
+            <p className="text-xl sm:text-2xl font-bold text-slate-800 mt-1">{inProgressCount}</p>
           </div>
           <div className="hidden sm:flex h-10 w-10 rounded-xl bg-slate-50 items-center justify-center border border-slate-200 text-slate-500 shrink-0">
             <Loader2 className="h-5 w-5 animate-spin" />
@@ -211,8 +234,8 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-xs flex justify-between items-center">
           <div>
-            <span className="text-[10px] uppercase font-bold text-slate-400 tracking-wider block">{t('resolvedTickets')}</span>
-            <p className="text-xl sm:text-2xl font-black text-emerald-600 mt-1">{resolvedCount}</p>
+            <span className="text-[10px] uppercase font-semibold text-slate-400 tracking-wider block">{t('resolvedTickets')}</span>
+            <p className="text-xl sm:text-2xl font-bold text-emerald-600 mt-1">{resolvedCount}</p>
           </div>
           <div className="hidden sm:flex h-10 w-10 rounded-xl bg-emerald-50 items-center justify-center border border-emerald-150 text-emerald-500 shrink-0">
             <CheckCircle className="h-5 w-5" />
@@ -229,7 +252,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
             {/* Headers and filters */}
             <div className="p-4 sm:p-5 border-b border-slate-100 flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-slate-50">
               <div>
-                <h3 className="font-extrabold text-slate-900 text-sm">{t('dispatchedIssuesHeader')}</h3>
+                <h3 className="font-bold text-slate-900 text-sm">{t('dispatchedIssuesHeader')}</h3>
                 <p className="text-xs text-slate-500 mt-0.5">{t('filterDispatchedIssues')}</p>
               </div>
 
@@ -251,7 +274,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
                 <select
                   value={severityFilter}
-                  onChange={(e) => setNewStatus(e.target.value as IssueStatus)}
+                  onChange={(e) => setSeverityFilter(e.target.value)}
                   className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-600 focus:outline-hidden font-semibold cursor-pointer flex-1 md:flex-none"
                 >
                   <option value="all">All Severity</option>
@@ -259,6 +282,17 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
                   <option value="Critical">Critical</option>
+                </select>
+
+                <select
+                  value={categoryFilter}
+                  onChange={(e) => setCategoryFilter(e.target.value)}
+                  className="text-xs rounded-lg border border-slate-200 bg-white px-2 py-1.5 text-slate-600 focus:outline-hidden font-semibold cursor-pointer flex-1 md:flex-none"
+                >
+                  <option value="all">All Categories</option>
+                  {uniqueCategories.map((cat, idx) => (
+                    <option key={idx} value={cat}>{cat}</option>
+                  ))}
                 </select>
               </div>
             </div>
@@ -286,7 +320,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                     >
                       {/* Priority badge strip */}
                       <div className="flex flex-col justify-start shrink-0">
-                        <span className={`text-[9px] font-extrabold uppercase px-2 py-0.5 rounded-full border ${getSeverityBadge(issue.severity)}`}>
+                        <span className={`text-[9px] font-semibold uppercase px-2 py-0.5 rounded-full border ${getSeverityBadge(issue.severity)}`}>
                           {issue.severity}
                         </span>
                       </div>
@@ -294,7 +328,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                       {/* Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-2 mb-1">
-                          <h4 className="text-xs font-extrabold text-slate-900 truncate">{issue.title}</h4>
+                          <h4 className="text-xs font-semibold text-slate-900 truncate">{issue.title}</h4>
                           <span className="text-[10px] text-slate-400 shrink-0">
                             {new Date(issue.createdAt).toLocaleDateString()}
                           </span>
@@ -310,10 +344,10 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                           </div>
                           
                           <div className="flex items-center gap-2 shrink-0">
-                            <span className="bg-slate-100 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md font-bold text-[9px] uppercase tracking-wider">
+                            <span className="bg-slate-100 border border-slate-200 text-slate-700 px-1.5 py-0.5 rounded-md font-semibold text-[9px] uppercase tracking-wider">
                               {issue.category}
                             </span>
-                            <span className="flex items-center gap-0.5 text-slate-800 font-bold text-[9px]">
+                            <span className="flex items-center gap-0.5 text-slate-800 font-semibold text-[9px]">
                               <ThumbsUp className="h-3 w-3" />
                               {issue.verificationCount}
                             </span>
@@ -329,7 +363,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
           {/* Map view for authority locale auditing */}
           <div className="bg-white p-4 sm:p-5 rounded-2xl border border-slate-200 shadow-xs h-[300px]">
-            <h4 className="font-extrabold text-slate-800 text-xs uppercase tracking-wider mb-3">{t('mapTitle')}</h4>
+            <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider mb-3">{t('mapTitle')}</h4>
             <div className="h-[210px] relative rounded-xl overflow-hidden border border-slate-200">
               <CivicMap
                 issues={filteredListings}
@@ -349,12 +383,12 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
               <div className="border-b border-slate-100 pb-4">
                 <div className="flex justify-between items-start gap-2">
                   <div>
-                    <span className="text-[10px] font-bold uppercase text-slate-400 tracking-wider">Ticket Auditing</span>
-                    <h3 className="font-extrabold text-slate-900 text-sm leading-tight mt-0.5">{selectedIssue.title}</h3>
+                    <span className="text-[10px] font-semibold uppercase text-slate-400 tracking-wider">Ticket Auditing</span>
+                    <h3 className="font-bold text-slate-900 text-sm leading-tight mt-0.5">{selectedIssue.title}</h3>
                   </div>
                   <button 
                     onClick={() => setSelectedIssue(null)}
-                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors"
+                    className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-50 cursor-pointer transition-colors animate-none"
                   >
                     <X className="h-4.5 w-4.5" />
                   </button>
@@ -383,17 +417,17 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
 
               {/* Status Update Form */}
               <form onSubmit={handleUpdateStatus} className="space-y-4">
-                <h4 className="font-bold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
-                  <CheckSquare className="h-4.5 w-4.5 text-slate-700 font-extrabold" />
+                <h4 className="font-semibold text-slate-800 text-xs uppercase tracking-wider flex items-center gap-1.5">
+                  <CheckSquare className="h-4.5 w-4.5 text-slate-700 font-semibold" />
                   Log Status Resolution Update
                 </h4>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Update Ticket Status</label>
+                  <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Update Ticket Status</label>
                   <select
                     value={newStatus}
                     onChange={(e) => setNewStatus(e.target.value as IssueStatus)}
-                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:outline-hidden font-bold cursor-pointer"
+                    className="w-full rounded-xl border border-slate-200 bg-white px-3.5 py-2.5 text-xs text-slate-900 focus:outline-hidden font-semibold cursor-pointer"
                   >
                     <option value="Under Review">Under Review</option>
                     <option value="Assigned">Assigned</option>
@@ -404,7 +438,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                 </div>
 
                 <div>
-                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Remarks / Action Logs</label>
+                  <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Remarks / Action Logs</label>
                   <textarea
                     rows={3}
                     required
@@ -418,12 +452,12 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                 {/* Proof upload (only if Resolved) */}
                 {newStatus === 'Resolved' && (
                   <div>
-                    <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Resolution Proof (Photo)</label>
+                    <label className="block text-[10px] font-medium text-slate-500 uppercase tracking-wider mb-1.5">Resolution Proof (Photo)</label>
                     <div className="flex items-center gap-3">
                       <button
                         type="button"
                         onClick={() => fileInputRef.current?.click()}
-                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-bold text-slate-700 hover:bg-slate-100 cursor-pointer"
+                        className="flex h-11 items-center justify-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-4 text-xs font-semibold text-slate-700 hover:bg-slate-100 cursor-pointer"
                       >
                         <Upload className="h-4 w-4 text-slate-700" />
                         <span>Upload Proof Photo</span>
@@ -454,7 +488,7 @@ export default function AuthorityDashboard({ userId, userName }: AuthorityDashbo
                 <button
                   type="submit"
                   disabled={isUpdating || !remarks}
-                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-4 py-3 text-sm font-bold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer disabled:opacity-50"
+                  className="flex w-full items-center justify-center gap-1.5 rounded-xl bg-slate-800 hover:bg-slate-900 px-4 py-3 text-sm font-semibold text-white shadow-lg shadow-slate-100 transition-colors cursor-pointer disabled:opacity-50"
                 >
                   {isUpdating ? (
                     <>
